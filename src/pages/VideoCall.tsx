@@ -107,12 +107,27 @@ const VideoCall = () => {
 
                 setSocket(newSocket);
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error initializing call:', error);
+
+                let errorMessage = '';
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = 'Camera and microphone access denied. Please allow permissions in your browser settings and refresh the page.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = 'No camera or microphone found. Please connect a camera and microphone.';
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = 'Camera or microphone is already in use by another application or tab. Please close other apps/tabs using your camera.';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMessage = 'Camera/microphone configuration not supported. Please try with different settings.';
+                } else {
+                    errorMessage = `Could not access camera or microphone: ${error.message}. Please check your browser permissions.`;
+                }
+
                 toast({
-                    title: 'Error',
-                    description: 'Failed to access camera/microphone. Please check permissions.',
-                    variant: 'destructive'
+                    title: 'Connection Error',
+                    description: errorMessage,
+                    variant: 'destructive',
+                    duration: 6000
                 });
             }
         };
