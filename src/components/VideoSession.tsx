@@ -67,7 +67,11 @@ const VideoSession: React.FC<VideoSessionProps> = ({
     const socketUrl = apiUrl.replace('/api', '');
 
     socketRef.current = io(socketUrl, {
-      auth: { token }
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 10000
     });
 
     socketRef.current.on('connect', () => {
