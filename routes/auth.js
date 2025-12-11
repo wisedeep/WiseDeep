@@ -196,6 +196,8 @@ router.post('/login', async (req, res) => {
     }
 
     // Check if email is verified
+    // Bypassed for Render deployment - allowing all users to login
+    /* 
     if (!user.isEmailVerified) {
       return res.status(403).json({
         message: 'Please verify your email before logging in. Check your inbox for the verification link.',
@@ -203,6 +205,7 @@ router.post('/login', async (req, res) => {
         email: user.email
       });
     }
+    */
 
     // For counsellors, check if approved
     if (role === 'counsellor') {
