@@ -151,14 +151,16 @@ router.get('/sessions/upcoming', authCounsellor, async (req, res) => {
       .sort({ date: 1, startTime: 1 })
       .limit(10); // Limit to next 10 sessions
 
-    const formattedSessions = sessions.map(session => ({
-      id: session._id,
-      client: `${session.user.firstName} ${session.user.lastName}`,
-      time: `${session.startTime} - ${session.endTime}`,
-      type: 'Video Call', // Default for now
-      status: session.status,
-      date: session.date.toISOString().split('T')[0], // Format as YYYY-MM-DD
-    }));
+    const formattedSessions = sessions
+      .filter(session => session.user) // Filter out sessions where user is null (deleted)
+      .map(session => ({
+        id: session._id,
+        client: `${session.user.firstName} ${session.user.lastName}`,
+        time: `${session.startTime} - ${session.endTime}`,
+        type: 'Video Call',
+        status: session.status,
+        date: session.date.toISOString().split('T')[0],
+      }));
 
     res.json(formattedSessions);
   } catch (error) {
@@ -520,7 +522,8 @@ router.get('/sessions', authCounsellor, async (req, res) => {
     }
 
     const sessions = await Session.find(query).populate('user', 'firstName lastName');
-    res.json(sessions);
+    const validSessions = sessions.filter(session => session.user);
+    res.json(validSessions);
   } catch (error) {
     console.error('Error fetching sessions:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -598,7 +601,7 @@ router.get('/schedule-stats', authCounsellor, async (req, res) => {
     res.json({
       sessionsToday,
       sessionsThisWeek,
-      availableHours: Math.round(totalAvailableHours * 10) / 10 // Round to 1 decimal
+      availableHours: Math.round(totalAvailableHours * 10) / 10
     });
   } catch (error) {
     console.error('Error fetching schedule stats:', error);

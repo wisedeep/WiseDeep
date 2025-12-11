@@ -164,14 +164,14 @@ const CounsellorDashboard = () => {
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 rounded-full bg-gradient-saffron flex items-center justify-center">
                       <span className="text-sm font-bold text-primary-foreground">
-                        {session.client.split(" ").map((n) => n[0]).join("")}
+                        {session.client ? session.client.split(" ").map((n) => n[0]).join("") : "U"}
                       </span>
                     </div>
                     <div>
-                      <h4 className="font-semibold">{session.client}</h4>
+                      <h4 className="font-semibold">{session.client || "unknown client"}</h4>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-4 h-4" />
-                        <span>{session.time}</span>
+                        <span>{session.time ? session.time.split(" - ")[0] : "Time N/A"}</span>
                         <span>•</span>
                         <span>{session.type}</span>
                       </div>
