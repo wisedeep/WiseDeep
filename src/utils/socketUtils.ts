@@ -25,7 +25,19 @@ export const initializeClientSocket = (): Socket | null => {
             clientSocket = io(socketUrl, {
                 auth: {
                     token: token
-                }
+                },
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: 5,
+                timeout: 10000
+            });
+
+            clientSocket.on("connect_error", (err) => {
+                console.error("Socket connection error:", err.message);
+            });
+
+            clientSocket.on("connect", () => {
+                console.log("Socket connected successfully:", clientSocket?.id);
             });
         }
     }
