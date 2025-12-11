@@ -234,6 +234,16 @@ const VideoCall = () => {
                     <span className="text-gray-400 text-sm">
                         {isConnected ? 'Connected' : 'Connecting...'}
                     </span>
+                    {!isConnected && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={retryConnection}
+                            className="ml-2 h-7 text-xs border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
+                        >
+                            Retry
+                        </Button>
+                    )}
                 </div>
             </div>
 
