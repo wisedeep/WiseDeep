@@ -142,186 +142,191 @@ const VideoCall = () => {
             // The state 'socket' might not be updated yet in the cleanup function if run immediately
             newSocket.disconnect();
         };
-    }, [sessionId]);
-
-    const createPeerConnection = (socket: Socket) => {
-        const configuration: RTCConfiguration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
-
-        const pc = new RTCPeerConnection(configuration);
-
-        // Add local stream tracks
-        localStreamRef.current?.getTracks().forEach(track => {
-            pc.addTrack(track, localStreamRef.current!);
-        });
-
-        // Handle incoming tracks
-        pc.ontrack = (event) => {
-            console.log('Received remote track');
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = event.streams[0];
-                setIsConnected(true);
+        const retryConnection = () => {
+            if (socket) {
+                console.log('Retrying connection...');
+                socket.emit('join-video-call', sessionId);
             }
         };
 
-        // Handle ICE candidates
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('ice-candidate', { sessionId, candidate: event.candidate });
+        const createPeerConnection = (socket: Socket) => {
+            const configuration: RTCConfiguration = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            };
+
+            const pc = new RTCPeerConnection(configuration);
+
+            // Add local stream tracks
+            localStreamRef.current?.getTracks().forEach(track => {
+                pc.addTrack(track, localStreamRef.current!);
+            });
+
+            // Handle incoming tracks
+            pc.ontrack = (event) => {
+                console.log('Received remote track');
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = event.streams[0];
+                    setIsConnected(true);
+                }
+            };
+
+            // Handle ICE candidates
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('ice-candidate', { sessionId, candidate: event.candidate });
+                }
+            };
+
+            peerConnectionRef.current = pc;
+            return pc;
+        };
+
+        const createOffer = async (socket: Socket) => {
+            const pc = createPeerConnection(socket);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit('offer', { sessionId, offer });
+        };
+
+        const handleOffer = async (offer: RTCSessionDescriptionInit, socket: Socket) => {
+            const pc = createPeerConnection(socket);
+            await pc.setRemoteDescription(offer);
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('answer', { sessionId, answer });
+        };
+
+        const toggleMute = () => {
+            if (localStreamRef.current) {
+                localStreamRef.current.getAudioTracks().forEach(track => {
+                    track.enabled = !track.enabled;
+                });
+                setIsMuted(!isMuted);
             }
         };
 
-        peerConnectionRef.current = pc;
-        return pc;
-    };
+        const toggleVideo = () => {
+            if (localStreamRef.current) {
+                localStreamRef.current.getVideoTracks().forEach(track => {
+                    track.enabled = !track.enabled;
+                });
+                setIsVideoOff(!isVideoOff);
+            }
+        };
 
-    const createOffer = async (socket: Socket) => {
-        const pc = createPeerConnection(socket);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit('offer', { sessionId, offer });
-    };
+        const endCall = () => {
+            localStreamRef.current?.getTracks().forEach(track => track.stop());
+            peerConnectionRef.current?.close();
+            socket?.disconnect();
+            navigate(-1);
+        };
 
-    const handleOffer = async (offer: RTCSessionDescriptionInit, socket: Socket) => {
-        const pc = createPeerConnection(socket);
-        await pc.setRemoteDescription(offer);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit('answer', { sessionId, answer });
-    };
-
-    const toggleMute = () => {
-        if (localStreamRef.current) {
-            localStreamRef.current.getAudioTracks().forEach(track => {
-                track.enabled = !track.enabled;
-            });
-            setIsMuted(!isMuted);
-        }
-    };
-
-    const toggleVideo = () => {
-        if (localStreamRef.current) {
-            localStreamRef.current.getVideoTracks().forEach(track => {
-                track.enabled = !track.enabled;
-            });
-            setIsVideoOff(!isVideoOff);
-        }
-    };
-
-    const endCall = () => {
-        localStreamRef.current?.getTracks().forEach(track => track.stop());
-        peerConnectionRef.current?.close();
-        socket?.disconnect();
-        navigate(-1);
-    };
-
-    return (
-        <div className="min-h-screen bg-gray-900 flex flex-col">
-            {/* Header */}
-            <div className="bg-gray-800 p-4 flex items-center justify-between">
-                <div>
-                    <h1 className="text-white text-xl font-semibold">Video Session</h1>
-                    <p className="text-gray-400 text-sm">Session ID: {sessionId}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                    <div className="text-white">
-                        <Monitor className="w-5 h-5 inline mr-2" />
-                        {formatDuration(callDuration)}
+        return (
+            <div className="min-h-screen bg-gray-900 flex flex-col">
+                {/* Header */}
+                <div className="bg-gray-800 p-4 flex items-center justify-between">
+                    <div>
+                        <h1 className="text-white text-xl font-semibold">Video Session</h1>
+                        <p className="text-gray-400 text-sm">Session ID: {sessionId}</p>
                     </div>
-                    <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                    <span className="text-gray-400 text-sm">
-                        {isConnected ? 'Connected' : 'Connecting...'}
-                    </span>
-                    {!isConnected && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={retryConnection}
-                            className="ml-2 h-7 text-xs border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
-                        >
-                            Retry
-                        </Button>
-                    )}
-                </div>
-            </div>
-
-            {/* Video Grid */}
-            <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Remote Video */}
-                <Card className="bg-gray-800 border-gray-700 relative overflow-hidden">
-                    <CardContent className="p-0 aspect-video">
-                        <video
-                            ref={remoteVideoRef}
-                            autoPlay
-                            playsInline
-                            className="w-full h-full object-cover"
-                        />
-                        {!isConnected && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                                <p className="text-white">Waiting for other participant...</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Local Video */}
-                <Card className="bg-gray-800 border-gray-700 relative overflow-hidden">
-                    <CardContent className="p-0 aspect-video">
-                        <video
-                            ref={localVideoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-full h-full object-cover mirror"
-                        />
-                        <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded">
-                            <span className="text-white text-sm">You</span>
+                    <div className="flex items-center gap-4">
+                        <div className="text-white">
+                            <Monitor className="w-5 h-5 inline mr-2" />
+                            {formatDuration(callDuration)}
                         </div>
-                    </CardContent>
-                </Card>
-            </div>
+                        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        <span className="text-gray-400 text-sm">
+                            {isConnected ? 'Connected' : 'Connecting...'}
+                        </span>
+                        {!isConnected && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={retryConnection}
+                                className="ml-2 h-7 text-xs border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
+                            >
+                                Retry
+                            </Button>
+                        )}
+                    </div>
+                </div>
 
-            {/* Controls */}
-            <div className="bg-gray-800 p-6 flex items-center justify-center gap-4">
-                <Button
-                    size="lg"
-                    variant={isMuted ? 'destructive' : 'secondary'}
-                    className="rounded-full w-14 h-14"
-                    onClick={toggleMute}
-                >
-                    {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-                </Button>
+                {/* Video Grid */}
+                <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Remote Video */}
+                    <Card className="bg-gray-800 border-gray-700 relative overflow-hidden">
+                        <CardContent className="p-0 aspect-video">
+                            <video
+                                ref={remoteVideoRef}
+                                autoPlay
+                                playsInline
+                                className="w-full h-full object-cover"
+                            />
+                            {!isConnected && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                                    <p className="text-white">Waiting for other participant...</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
 
-                <Button
-                    size="lg"
-                    variant={isVideoOff ? 'destructive' : 'secondary'}
-                    className="rounded-full w-14 h-14"
-                    onClick={toggleVideo}
-                >
-                    {isVideoOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
-                </Button>
+                    {/* Local Video */}
+                    <Card className="bg-gray-800 border-gray-700 relative overflow-hidden">
+                        <CardContent className="p-0 aspect-video">
+                            <video
+                                ref={localVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover mirror"
+                            />
+                            <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-1 rounded">
+                                <span className="text-white text-sm">You</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
 
-                <Button
-                    size="lg"
-                    variant="destructive"
-                    className="rounded-full w-14 h-14"
-                    onClick={endCall}
-                >
-                    <PhoneOff className="w-6 h-6" />
-                </Button>
-            </div>
+                {/* Controls */}
+                <div className="bg-gray-800 p-6 flex items-center justify-center gap-4">
+                    <Button
+                        size="lg"
+                        variant={isMuted ? 'destructive' : 'secondary'}
+                        className="rounded-full w-14 h-14"
+                        onClick={toggleMute}
+                    >
+                        {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                    </Button>
 
-            <style>{`
+                    <Button
+                        size="lg"
+                        variant={isVideoOff ? 'destructive' : 'secondary'}
+                        className="rounded-full w-14 h-14"
+                        onClick={toggleVideo}
+                    >
+                        {isVideoOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
+                    </Button>
+
+                    <Button
+                        size="lg"
+                        variant="destructive"
+                        className="rounded-full w-14 h-14"
+                        onClick={endCall}
+                    >
+                        <PhoneOff className="w-6 h-6" />
+                    </Button>
+                </div>
+
+                <style>{`
         .mirror {
           transform: scaleX(-1);
         }
       `}</style>
-        </div>
-    );
-};
+            </div>
+        );
+    };
 
-export default VideoCall;
+    export default VideoCall;
