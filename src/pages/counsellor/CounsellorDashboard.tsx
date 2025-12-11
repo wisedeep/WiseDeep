@@ -22,6 +22,7 @@ interface StatsData {
 }
 
 interface Session {
+  id?: string;
   _id?: string;
   client: string;
   time: string;
@@ -181,7 +182,7 @@ const CounsellorDashboard = () => {
                     <Badge variant={session.status === 'confirmed' ? 'default' : 'secondary'}>
                       {session.status}
                     </Badge>
-                    <Button size="sm" onClick={() => navigate(`/video-call/${session._id}`)}>
+                    <Button size="sm" onClick={() => navigate(`/video-call/${session.id || session._id}`)}>
                       <Video className="w-4 h-4 mr-2" />
                       Start Session
                     </Button>
