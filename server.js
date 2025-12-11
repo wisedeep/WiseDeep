@@ -74,37 +74,35 @@ setupSocketHandlers(io);
 const PORT = process.env.PORT || 5002;
 
 // Middleware
-app.use(cors({
-  // Middleware
-  app.use(cors(corsOptions));
-  app.use(express.json());
+app.use(cors(corsOptions));
+app.use(express.json());
 
-  // Serve uploaded files
-  app.use('/uploads', express.static('uploads'));
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
 
-  // MongoDB Connection
-  mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
-      console.log('Connected to MongoDB');
-    })
-    .catch((error) => {
-      console.error('Error connecting to MongoDB:', error);
-    });
-
-  // Routes
-  app.use('/api/auth', authRoutes);
-  app.use('/api/user', userRoutes);
-  app.use('/api/counsellor', counsellorRoutes);
-  app.use('/api/video-call', videoCallRoutes);
-  app.use('/api/admin', adminRoutes);
-  app.use('/api/imagekit', imagekitRoutes);
-
-  // WebRTC Signaling Server logic is now in utils/socketHandlers.js
-
-  app.get('/', (req, res) => {
-    res.json({ message: 'WiseDeep API Server is running' });
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log('Connected to MongoDB');
+  })
+  .catch((error) => {
+    console.error('Error connecting to MongoDB:', error);
   });
 
-  server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/counsellor', counsellorRoutes);
+app.use('/api/video-call', videoCallRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/imagekit', imagekitRoutes);
+
+// WebRTC Signaling Server logic is now in utils/socketHandlers.js
+
+app.get('/', (req, res) => {
+  res.json({ message: 'WiseDeep API Server is running' });
+});
+
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
