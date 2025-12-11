@@ -11,14 +11,19 @@ export const setupSocketHandlers = (io) => {
     io.use((socket, next) => {
         const token = socket.handshake.auth.token;
         if (!token) {
-            return next(new Error('Authentication error'));
+            console.error(`Socket Auth Failed: No token provided for socket ${socket.id}`);
+            return next(new Error('Authentication error: No token'));
         }
         try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+            const secret = process.env.JWT_SECRET || 'secretkey';
+            const decoded = jwt.verify(token, secret);
             socket.user = decoded;
+            console.log(`Socket Authenticated: User ${decoded.userId} (${socket.id})`);
             next();
         } catch (err) {
-            next(new Error('Authentication error'));
+            console.error(`Socket Auth Failed for socket ${socket.id}:`, err.message);
+            // console.error('Token used:', token); // Careful logging full tokens in prod
+            return next(new Error(`Authentication error: ${err.message}`));
         }
     });
 
