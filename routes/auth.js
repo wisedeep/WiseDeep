@@ -36,13 +36,14 @@ router.post('/register', async (req, res) => {
     const verificationToken = generateToken();
     const hashedToken = hashToken(verificationToken);
 
-    // Create user
+    // Create user with isEmailVerified set to true (Bypassing verification for Render deployment)
     const user = new User({
       firstName,
       lastName,
       email,
       password: hashedPassword,
       role: role || 'user',
+      isEmailVerified: true, // Auto-verified to bypass email requirement
       emailVerificationToken: hashedToken,
       emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     });
@@ -61,17 +62,18 @@ router.post('/register', async (req, res) => {
       await counsellor.save();
     }
 
-    // Send verification email
+    // Try to send verification email (best effort), but don't block registration
     try {
       await sendVerificationEmail(email, firstName, verificationToken);
     } catch (emailError) {
-      console.error('Failed to send verification email:', emailError);
-      // Continue registration even if email fails
+      console.warn('Note: Verification email failed to send (likely due to Render SMTP restrictions). User is auto-verified.');
+      // Continue registration - user is already verified
     }
 
     res.status(201).json({
-      message: 'Registration successful! Please check your email to verify your account.',
-      email: email
+      message: 'Registration successful! You can now login.',
+      email: email,
+      verified: true
     });
   } catch (error) {
     console.error('Registration error:', error);
