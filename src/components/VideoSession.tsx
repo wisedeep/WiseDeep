@@ -79,12 +79,11 @@ const VideoSession: React.FC<VideoSessionProps> = ({
       socketRef.current.emit('join-video-call', sessionId);
     });
 
-    socketRef.current.on('user-connected', (data) => {
-      console.log('Remote user connected:', data);
+    socketRef.current.on('user-joined', (data) => {
+      console.log('Remote user joined:', data);
       setIsRemoteConnected(true);
-      if (userType === 'counsellor' && data.userType === 'user') {
-        createOffer();
-      }
+      // The user already in the room initiates the offer (Polite Peer pattern not strictly needed if we just say "existing user offers")
+      createOffer();
     });
 
     socketRef.current.on('user-disconnected', (data) => {
