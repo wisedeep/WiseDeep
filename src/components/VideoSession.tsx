@@ -72,11 +72,7 @@ const VideoSession: React.FC<VideoSessionProps> = ({
 
     socketRef.current.on('connect', () => {
       // console.log('Connected to signaling server'); // Cleanup console.log
-      socketRef.current.emit('join-room', {
-        roomId: sessionId,
-        userType,
-        userId: user?.id
-      });
+      socketRef.current.emit('join-video-call', sessionId);
     });
 
     socketRef.current.on('user-connected', (data) => {
@@ -208,7 +204,10 @@ const VideoSession: React.FC<VideoSessionProps> = ({
 
     peerConnectionRef.current.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
-        socketRef.current.emit('ice-candidate', event.candidate);
+        socketRef.current.emit('ice-candidate', {
+          sessionId,
+          candidate: event.candidate
+        });
       }
     };
 
@@ -232,7 +231,10 @@ const VideoSession: React.FC<VideoSessionProps> = ({
       await peerConnectionRef.current.setLocalDescription(offer);
 
       if (socketRef.current) {
-        socketRef.current.emit('offer', offer);
+        socketRef.current.emit('offer', {
+          sessionId,
+          offer
+        });
       }
     } catch (error) {
       console.error('Error creating offer:', error);
@@ -248,7 +250,10 @@ const VideoSession: React.FC<VideoSessionProps> = ({
       await peerConnectionRef.current.setLocalDescription(answer);
 
       if (socketRef.current) {
-        socketRef.current.emit('answer', answer);
+        socketRef.current.emit('answer', {
+          sessionId,
+          answer
+        });
       }
     } catch (error) {
       console.error('Error handling offer:', error);
