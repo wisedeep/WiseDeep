@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Clock, ArrowRight } from "lucide-react";
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { default as api } from "@/lib/auth";
 
 interface Course {
   _id: string;
@@ -24,7 +24,7 @@ const CoursesSection = () => {
 
   const fetchCourses = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/user/courses/public');
+      const response = await api.get('/user/courses/public');
       // Show only first 3 courses for home page
       setCourses(response.data.slice(0, 3));
     } catch (error) {
