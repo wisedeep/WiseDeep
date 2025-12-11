@@ -35,29 +35,7 @@ const server = createServer(app);
 
 // CORS configuration function
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // Check if origin checks allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-
-    // Check for Vercel deployments (regex)
-    if (origin.match(/^https?:\/\/.*\.vercel\.app$/)) {
-      return callback(null, true);
-    }
-
-    // Check for localhost (ports can vary)
-    if (origin.match(/^http:\/\/localhost:[0-9]+$/)) {
-      return callback(null, true);
-    }
-
-    // Default: block
-    const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-    return callback(new Error(msg), false);
-  },
+  origin: "*", // Allow all origins for troubleshooting/stability as requested
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']

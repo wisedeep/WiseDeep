@@ -26,10 +26,10 @@ export const initializeClientSocket = (): Socket | null => {
                 auth: {
                     token: token
                 },
-                transports: ['websocket', 'polling'],
+                transports: ['websocket'], // Force WebSocket only as per Render best practice
                 reconnection: true,
                 reconnectionAttempts: 5,
-                timeout: 10000
+                reconnectionDelay: 1000,
             });
 
             clientSocket.on("connect_error", (err) => {

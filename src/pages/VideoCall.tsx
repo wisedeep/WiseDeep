@@ -71,9 +71,12 @@ const VideoCall = () => {
                 const data = await response.json();
                 console.log('Session initialized:', data);
 
-                // Initialize Socket.io
                 const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
-                    auth: { token: localStorage.getItem('token') }
+                    auth: { token: localStorage.getItem('token') },
+                    transports: ['websocket'], // Force WebSocket only
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000,
                 });
 
                 newSocket.on('connect', () => {
