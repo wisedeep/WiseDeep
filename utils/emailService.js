@@ -1,33 +1,51 @@
-import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 
-// Initialize SendGrid with API key
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  console.log('✅ SendGrid email service initialized');
-} else {
-  console.warn('⚠️  SendGrid API key not configured. Emails will be logged to console only.');
-}
+// Create reusable transporter
+const createTransporter = () => {
+    // For development, use Ethereal (fake SMTP) if no real credentials provided
+    // For production, use real SMTP credentials from environment variables
+
+    if (process.env.EMAIL_SERVICE && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+        // Real email service (Gmail, SendGrid, etc.)
+        return nodemailer.createTransport({
+            service: process.env.EMAIL_SERVICE,
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASSWORD,
+            },
+        });
+    } else {
+        // Development mode: log emails to console instead of sending
+        console.warn('⚠️  Email service not configured. Emails will be logged to console only.');
+        return nodemailer.createTransport({
+            streamTransport: true,
+            newline: 'unix',
+            buffer: true
+        });
+    }
+};
 
 // Generate secure random token
 export const generateToken = () => {
-  return crypto.randomBytes(32).toString('hex');
+    return crypto.randomBytes(32).toString('hex');
 };
 
 // Hash token for storage
 export const hashToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
+    return crypto.createHash('sha256').update(token).digest('hex');
 };
 
 // Send email verification
 export const sendVerificationEmail = async (email, firstName, token) => {
-  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${token}`;
+    const transporter = createTransporter();
+    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${token}`;
 
-  const msg = {
-    to: email,
-    from: process.env.EMAIL_FROM || 'noreply@wisedeep.com',
-    subject: 'Verify Your WiseDeep Account',
-    html: `
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || 'WiseDeep <noreply@wisedeep.com>',
+        to: email,
+        subject: 'Verify Your WiseDeep Account',
+        html: `
       <!DOCTYPE html>
       <html>
         <head>
@@ -65,32 +83,36 @@ export const sendVerificationEmail = async (email, firstName, token) => {
         </body>
       </html>
     `,
-  };
+    };
 
-  try {
-    if (process.env.SENDGRID_API_KEY) {
-      await sgMail.send(msg);
-      console.log('✅ Verification email sent to:', email);
-    } else {
-      console.log('📧 [DEV MODE] Verification email would be sent to:', email);
-      console.log('🔗 Verification URL:', verificationUrl);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+
+        if (process.env.EMAIL_SERVICE) {
+            console.log('✅ Verification email sent to:', email);
+        } else {
+            console.log('📧 [DEV MODE] Verification email would be sent to:', email);
+            console.log('🔗 Verification URL:', verificationUrl);
+            console.log('📝 Email content:', info.message.toString());
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Error sending verification email:', error);
+        throw new Error('Failed to send verification email');
     }
-    return { success: true };
-  } catch (error) {
-    console.error('❌ Error sending verification email:', error.response ? error.response.body : error);
-    throw new Error('Failed to send verification email');
-  }
 };
 
 // Send password reset email
 export const sendPasswordResetEmail = async (email, firstName, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${token}`;
+    const transporter = createTransporter();
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${token}`;
 
-  const msg = {
-    to: email,
-    from: process.env.EMAIL_FROM || 'noreply@wisedeep.com',
-    subject: 'Reset Your WiseDeep Password',
-    html: `
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || 'WiseDeep <noreply@wisedeep.com>',
+        to: email,
+        subject: 'Reset Your WiseDeep Password',
+        html: `
       <!DOCTYPE html>
       <html>
         <head>
@@ -135,30 +157,35 @@ export const sendPasswordResetEmail = async (email, firstName, token) => {
         </body>
       </html>
     `,
-  };
+    };
 
-  try {
-    if (process.env.SENDGRID_API_KEY) {
-      await sgMail.send(msg);
-      console.log('✅ Password reset email sent to:', email);
-    } else {
-      console.log('📧 [DEV MODE] Password reset email would be sent to:', email);
-      console.log('🔗 Reset URL:', resetUrl);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+
+        if (process.env.EMAIL_SERVICE) {
+            console.log('✅ Password reset email sent to:', email);
+        } else {
+            console.log('📧 [DEV MODE] Password reset email would be sent to:', email);
+            console.log('🔗 Reset URL:', resetUrl);
+            console.log('📝 Email content:', info.message.toString());
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Error sending password reset email:', error);
+        throw new Error('Failed to send password reset email');
     }
-    return { success: true };
-  } catch (error) {
-    console.error('❌ Error sending password reset email:', error.response ? error.response.body : error);
-    throw new Error('Failed to send password reset email');
-  }
 };
 
 // Send password changed confirmation
 export const sendPasswordChangedEmail = async (email, firstName) => {
-  const msg = {
-    to: email,
-    from: process.env.EMAIL_FROM || 'noreply@wisedeep.com',
-    subject: 'Your WiseDeep Password Has Been Changed',
-    html: `
+    const transporter = createTransporter();
+
+    const mailOptions = {
+        from: process.env.EMAIL_FROM || 'WiseDeep <noreply@wisedeep.com>',
+        to: email,
+        subject: 'Your WiseDeep Password Has Been Changed',
+        html: `
       <!DOCTYPE html>
       <html>
         <head>
@@ -192,19 +219,21 @@ export const sendPasswordChangedEmail = async (email, firstName) => {
         </body>
       </html>
     `,
-  };
+    };
 
-  try {
-    if (process.env.SENDGRID_API_KEY) {
-      await sgMail.send(msg);
-      console.log('✅ Password changed confirmation sent to:', email);
-    } else {
-      console.log('📧 [DEV MODE] Password changed confirmation would be sent to:', email);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+
+        if (process.env.EMAIL_SERVICE) {
+            console.log('✅ Password changed confirmation sent to:', email);
+        } else {
+            console.log('📧 [DEV MODE] Password changed confirmation would be sent to:', email);
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Error sending password changed email:', error);
+        // Don't throw error for confirmation emails
+        return { success: false };
     }
-    return { success: true };
-  } catch (error) {
-    console.error('❌ Error sending password changed email:', error.response ? error.response.body : error);
-    // Don't throw error for confirmation emails
-    return { success: false };
-  }
 };
