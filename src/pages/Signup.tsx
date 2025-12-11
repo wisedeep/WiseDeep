@@ -77,9 +77,11 @@ const Signup = () => {
         password: userForm.password,
         role: 'user'
       });
-      setRegisteredEmail(userForm.email);
-      setRegistrationSuccess(true);
-      toast({ title: "Success", description: response.message || "Account created! Please check your email." });
+
+      toast({ title: "Success", description: "Account created! Redirecting..." });
+      // Direct redirect to user dashboard
+      navigate("/user-dashboard");
+
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {

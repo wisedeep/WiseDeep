@@ -88,8 +88,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (userData: SignupData) => {
     try {
       const response = await api.post('/auth/register', userData);
-      // Don't auto-login anymore - email verification required
-      // Just return the response data (message and email)
+
+      // Auto-login if token is provided
+      if (response.data.token && response.data.user) {
+        localStorage.setItem('token', response.data.token);
+        setUser(response.data.user);
+      }
+
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Registration failed');

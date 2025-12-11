@@ -70,10 +70,25 @@ router.post('/register', async (req, res) => {
       // Continue registration - user is already verified
     }
 
+    // Generate JWT token for auto-login
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET || 'secretkey',
+      { expiresIn: '24h' }
+    );
+
     res.status(201).json({
-      message: 'Registration successful! You can now login.',
+      message: 'Registration successful! Logging you in...',
       email: email,
-      verified: true
+      verified: true,
+      token,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role
+      }
     });
   } catch (error) {
     console.error('Registration error:', error);
