@@ -22,11 +22,8 @@ export const setupSocketHandlers = (io) => {
             next();
         } catch (err) {
             console.error(`Socket Auth Failed for socket ${socket.id}:`, err.message);
-            // DEBUGGING: Allow connection anyway to prove it's an Auth issue
-            console.warn("⚠️ DEBUG: Allowing unauthenticated socket connection!");
-            socket.user = { userId: "guest", role: "guest" };
-            next();
-            // return next(new Error(`Authentication error: ${err.message}`));
+            // console.error('Token used:', token); // Careful logging full tokens in prod
+            return next(new Error(`Authentication error: ${err.message}`));
         }
     });
 
