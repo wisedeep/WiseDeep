@@ -25,6 +25,7 @@ const allowedOrigins = [
   "http://localhost:8087",
   "http://localhost:8089",
   "http://localhost:5173",
+  "https://wise-deep.vercel.app",
   "file://"
 ];
 
