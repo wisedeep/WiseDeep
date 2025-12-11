@@ -138,7 +138,9 @@ const VideoCall = () => {
             // Cleanup
             localStreamRef.current?.getTracks().forEach(track => track.stop());
             peerConnectionRef.current?.close();
-            socket?.disconnect();
+            // Important: Use the local newSocket reference for cleanup
+            // The state 'socket' might not be updated yet in the cleanup function if run immediately
+            newSocket.disconnect();
         };
     }, [sessionId]);
 
