@@ -1,8 +1,10 @@
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { LogOut, Menu, X, Video } from "lucide-react";
+import { useState, useEffect } from "react";
+import { initializeClientSocket } from "@/utils/socketUtils";
+import { useToast } from "@/hooks/use-toast";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -18,10 +20,43 @@ const DashboardLayout = ({ children, navItems, userRole }: DashboardLayoutProps)
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { toast } = useToast();
 
   const handleLogout = () => {
     navigate("/login");
   };
+
+  useEffect(() => {
+    const socket = initializeClientSocket();
+
+    if (socket) {
+      socket.on("incoming-call", (data: { sessionId: string; callerName: string; message: string }) => {
+        toast({
+          title: "Incoming Video Call",
+          description: `${data.callerName} is calling you.`,
+          duration: 10000,
+          action: (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => navigate(`/video-call/${data.sessionId}`)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Video className="w-4 h-4 mr-2" />
+              Join Now
+            </Button>
+          ),
+        });
+      });
+    }
+
+    return () => {
+      // Don't disconnect here as it might be used by other components
+      if (socket) {
+        socket.off("incoming-call");
+      }
+    };
+  }, [navigate, toast]);
 
   return (
     <div className="min-h-screen bg-gradient-warm">
@@ -59,9 +94,8 @@ const DashboardLayout = ({ children, navItems, userRole }: DashboardLayoutProps)
       <div className="flex">
         {/* Sidebar */}
         <aside
-          className={`${
-            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } lg:translate-x-0 fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-card border-r border-border transition-transform duration-300 z-30 overflow-y-auto`}
+          className={`${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+            } lg:translate-x-0 fixed lg:sticky top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-card border-r border-border transition-transform duration-300 z-30 overflow-y-auto`}
         >
           <nav className="p-4 space-y-2">
             {navItems.map((item, index) => {
@@ -73,11 +107,10 @@ const DashboardLayout = ({ children, navItems, userRole }: DashboardLayoutProps)
                     navigate(item.path);
                     setIsSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-smooth ${
-                    isActive
-                      ? "bg-gradient-saffron text-primary-foreground shadow-soft"
-                      : "hover:bg-secondary text-foreground"
-                  }`}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-smooth ${isActive
+                    ? "bg-gradient-saffron text-primary-foreground shadow-soft"
+                    : "hover:bg-secondary text-foreground"
+                    }`}
                 >
                   {item.icon}
                   <span className="font-medium">{item.label}</span>
