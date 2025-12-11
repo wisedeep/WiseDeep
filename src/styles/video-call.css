@@ -1,0 +1,100 @@
+/* src/styles/video-call.css */
+.video-call-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #1a1a1a;
+}
+
+.video-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.video-container {
+  position: relative;
+  background: #2d2d2d;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+}
+
+.video-element {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.local-video {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 200px;
+  z-index: 10;
+  border: 2px solid #4a90e2;
+}
+
+.video-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.call-controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #2d2d2d;
+}
+
+.call-controls button {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: #4a4a4a;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.call-controls button:hover {
+  background: #5a5a5a;
+}
+
+.call-controls .end-call {
+  background: #e74c3c;
+}
+
+.call-controls .end-call:hover {
+  background: #c0392b;
+}
+
+.status, .error {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  z-index: 100;
+}
+
+.error {
+  background: rgba(231, 76, 60, 0.8);
+}
