@@ -39,7 +39,7 @@ export interface SignupData {
   specialization?: string;
   credentials?: string;
   bio?: string;
-  experience?: number;
+  experience?: string;
 }
 
 export interface AuthResponse {
