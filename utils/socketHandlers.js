@@ -10,6 +10,7 @@ export const setupSocketHandlers = (io) => {
     // Middleware for authentication
     io.use((socket, next) => {
         console.log(`🔐 [AUTH] Socket ${socket.id} attempting to connect...`);
+
         const token = socket.handshake.auth.token;
         if (!token) {
             console.error(`❌ [AUTH FAILED] No token provided for socket ${socket.id}`);
