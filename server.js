@@ -64,7 +64,8 @@ const corsOptions = {
 };
 
 const io = new Server(server, {
-  cors: corsOptions
+  cors: corsOptions,
+  path: '/socket.io/'
 });
 
 // Initialize socket utilities

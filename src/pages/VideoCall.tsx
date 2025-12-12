@@ -144,27 +144,30 @@ const VideoCall = () => {
 
                 console.log('✅ Session verified');
 
-                // Sanitize URL to ensure we connect to root namespace
-                // If VITE_API_URL includes a path (e.g. /api), socket.io treats it as a namespace
-                const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-                console.log('🔌 Raw API URL:', rawUrl);
+                // Determine Socket URL
+                // Priority 1: Explicit VITE_SOCKET_URL (Best for production)
+                // Priority 2: Sanitize VITE_API_URL (Fallback)
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                let socketUrl = import.meta.env.VITE_SOCKET_URL;
 
-                let socketUrl = rawUrl;
-                try {
-                    const parsedUrl = new URL(rawUrl);
-                    socketUrl = parsedUrl.origin; // Extracts protocol + host + port, removes path
-                    console.log('🔌 Sanitized Socket URL (Origin):', socketUrl);
-                } catch (e) {
-                    console.error('❌ Failed to parse API URL, using raw:', e);
+                if (!socketUrl) {
+                    console.log('ℹ️ VITE_SOCKET_URL not set, sanitizing VITE_API_URL...');
+                    try {
+                        const parsedUrl = new URL(apiUrl);
+                        socketUrl = parsedUrl.origin; // Extracts protocol + host + port, removes path
+                    } catch (e) {
+                        console.error('❌ Failed to parse API URL, using raw:', e);
+                        socketUrl = apiUrl;
+                    }
                 }
 
+                console.log('🔌 Socket connecting to:', socketUrl);
+
                 // Connect to socket
-                console.log('🔌 Creating socket connection to:', socketUrl);
                 newSocket = io(socketUrl, {
                     auth: { token: localStorage.getItem('token') },
                     transports: ['websocket'],
                     reconnection: true,
-                    // Ensure we don't accidentally send a namespace in the query or path
                     path: '/socket.io/'
                 });
 
