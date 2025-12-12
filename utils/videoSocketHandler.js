@@ -13,11 +13,8 @@ export const setupVideoSocketHandler = (io) => {
     console.log('📹 Video Socket Handler initialized');
 
     io.on('connection', (socket) => {
-        // User is already authenticated from main socket handler
-        if (!socket.user) {
-            console.error('❌ Socket connected without authentication');
-            return;
-        }
+        // Socket is already authenticated by the middleware in socketHandlers.js
+        // socket.user is available from the authentication middleware
 
         // ==================== JOIN VIDEO ROOM ====================
         socket.on('video:join', async ({ sessionId, userRole }) => {
