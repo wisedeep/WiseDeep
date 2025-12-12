@@ -210,11 +210,17 @@ router.post('/sessions', authUser, async (req, res) => {
     }
 
     // Parse and validate date
-    const dateValidation = parseDateString(date);
-    if (!dateValidation.isValid) {
-      return res.status(400).json({ message: dateValidation.error });
+    // After Zod validation, date might already be a Date object
+    let dateObj;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else {
+      const dateValidation = parseDateString(date);
+      if (!dateValidation.isValid) {
+        return res.status(400).json({ message: dateValidation.error });
+      }
+      dateObj = dateValidation.date;
     }
-    const dateObj = dateValidation.date;
 
     // Check if date is in the past
     if (isDateInPast(dateObj)) {
