@@ -9,20 +9,20 @@ const videoRooms = new Map(); // NEW: Track video call rooms - sessionId -> { ca
 export const setupSocketHandlers = (io) => {
     // Middleware for authentication
     io.use((socket, next) => {
+        console.log(`🔐 [AUTH] Socket ${socket.id} attempting to connect...`);
         const token = socket.handshake.auth.token;
         if (!token) {
-            console.error(`Socket Auth Failed: No token provided for socket ${socket.id}`);
+            console.error(`❌ [AUTH FAILED] No token provided for socket ${socket.id}`);
             return next(new Error('Authentication error: No token'));
         }
         try {
             const secret = process.env.JWT_SECRET || 'secretkey';
             const decoded = jwt.verify(token, secret);
             socket.user = decoded;
-            console.log(`Socket Authenticated: User ${decoded.userId} (${socket.id})`);
+            console.log(`✅ [AUTH SUCCESS] User ${decoded.userId} authenticated (${socket.id})`);
             next();
         } catch (err) {
-            console.error(`Socket Auth Failed for socket ${socket.id}:`, err.message);
-            // console.error('Token used:', token); // Careful logging full tokens in prod
+            console.error(`❌ [AUTH FAILED] Socket ${socket.id}: ${err.message}`);
             return next(new Error(`Authentication error: ${err.message}`));
         }
     });
