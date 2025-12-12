@@ -14,7 +14,7 @@ const VideoCall = () => {
     // State
     const [socket, setSocket] = useState<Socket | null>(null);
     const [userRole, setUserRole] = useState<'caller' | 'callee' | null>(null);
-    const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+    const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected' | 'failed'>('disconnected');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [callDuration, setCallDuration] = useState(0);
@@ -24,6 +24,7 @@ const VideoCall = () => {
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
+    const iceServersRef = useRef<any[]>([]);
 
     // Timer
     useEffect(() => {
@@ -46,15 +47,13 @@ const VideoCall = () => {
     const createPeerConnection = (socket: Socket): RTCPeerConnection => {
         console.log('🔧 Creating peer connection...');
 
+        // Use fetched ICE servers or fallback to Google STUN
+        const iceServers = iceServersRef.current.length > 0
+            ? iceServersRef.current
+            : [{ urls: 'stun:stun.l.google.com:19302' }];
+
         const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
-            ]
+            iceServers: iceServers
         });
 
         // Add local tracks
@@ -90,7 +89,7 @@ const VideoCall = () => {
         pc.onconnectionstatechange = () => {
             console.log(`🔌 Connection state: ${pc.connectionState}`);
             if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-                setConnectionState('disconnected');
+                setConnectionState(pc.connectionState === 'failed' ? 'failed' : 'disconnected');
                 toast({
                     title: 'Connection Lost',
                     description: 'The video connection was lost',
@@ -114,6 +113,16 @@ const VideoCall = () => {
         const initialize = async () => {
             try {
                 console.log('\n🎬 Initializing video call...');
+
+                // Fetch TURN credentials
+                try {
+                    const response = await fetch("https://wisedeep.metered.live/api/v1/turn/credentials?apiKey=4c8ac716c4525ba5e6303315bb051aed8d62");
+                    const iceServers = await response.json();
+                    iceServersRef.current = iceServers;
+                    console.log('✅ Fetched TURN credentials');
+                } catch (error) {
+                    console.error('❌ Failed to fetch TURN credentials:', error);
+                }
 
                 // Get user media first
                 const stream = await navigator.mediaDevices.getUserMedia({
