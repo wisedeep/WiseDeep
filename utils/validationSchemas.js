@@ -10,7 +10,17 @@ import { z } from 'zod';
  */
 export const sessionBookingSchema = z.object({
     counsellor: z.string().min(1, 'Counsellor ID is required'),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    date: z.union([
+        z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+        z.date(),
+        z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date format')
+    ]).transform((val) => {
+        // Convert to Date object if it's a string
+        if (typeof val === 'string') {
+            return new Date(val);
+        }
+        return val;
+    }),
     startTime: z.string().regex(/^\d{1,2}:\d{2} (AM|PM)$/i, 'Time must be in HH:MM AM/PM format'),
     duration: z.number().min(15, 'Duration must be at least 15 minutes').max(180, 'Duration cannot exceed 180 minutes')
 });
