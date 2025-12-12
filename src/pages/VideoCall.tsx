@@ -263,6 +263,20 @@ const VideoCall = () => {
                     });
                 });
 
+                // ==================== SOCKET ERRORS ====================
+                newSocket.on('connect_error', (error) => {
+                    console.error('❌ Socket connection error:', error);
+                    toast({
+                        title: 'Connection Error',
+                        description: 'Failed to connect to server',
+                        variant: 'destructive'
+                    });
+                });
+
+                newSocket.on('error', (error) => {
+                    console.error('❌ Socket error:', error);
+                });
+
                 setSocket(newSocket);
 
             } catch (error: any) {
@@ -344,8 +358,8 @@ const VideoCall = () => {
                         {formatDuration(callDuration)}
                     </div>
                     <div className={`w-3 h-3 rounded-full ${connectionState === 'connected' ? 'bg-green-500' :
-                            connectionState === 'connecting' ? 'bg-yellow-500' :
-                                'bg-red-500'
+                        connectionState === 'connecting' ? 'bg-yellow-500' :
+                            'bg-red-500'
                         }`} />
                     <span className="text-gray-400 text-sm">
                         {connectionState === 'connected' ? 'Connected' :
