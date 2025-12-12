@@ -96,11 +96,23 @@ export const setupSocketHandlers = (io) => {
                 // AND notify the current user that someone is waiting
                 if (existingParticipants > 0) {
                     console.log(`Notifying existing participants in room ${sessionId} that user ${socket.id} joined`);
-                    socket.to(sessionId).emit('user-joined');
 
-                    // Also notify the joining user that there's already someone in the room
-                    console.log(`Notifying ${socket.id} that room ${sessionId} already has participants`);
-                    socket.emit('user-joined');
+                    // Get the first existing participant's socket ID for comparison
+                    const existingSocketId = Array.from(room)[0];
+
+                    // Determine who is "polite" (creates offer) based on socket ID comparison
+                    // This ensures deterministic role assignment and prevents race conditions
+                    const isCurrentUserPolite = socket.id > existingSocketId;
+                    const isExistingUserPolite = !isCurrentUserPolite;
+
+                    console.log(`Role assignment: Current user (${socket.id}) is ${isCurrentUserPolite ? 'POLITE' : 'IMPOLITE'}`);
+                    console.log(`Role assignment: Existing user (${existingSocketId}) is ${isExistingUserPolite ? 'POLITE' : 'IMPOLITE'}`);
+
+                    // Notify existing participant with their role
+                    socket.to(sessionId).emit('user-joined', { isPolite: isExistingUserPolite });
+
+                    // Notify current user with their role
+                    socket.emit('user-joined', { isPolite: isCurrentUserPolite });
                 } else {
                     console.log(`User ${socket.id} is the first to join room ${sessionId}`);
                 }

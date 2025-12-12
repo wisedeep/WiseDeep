@@ -21,6 +21,8 @@ const VideoCall = () => {
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
+    const makingOfferRef = useRef(false); // Track if we're currently making an offer
+    const isPoliteRef = useRef(false); // Determines who makes the offer
 
     useEffect(() => {
         let interval: NodeJS.Timeout;
@@ -164,12 +166,19 @@ const VideoCall = () => {
                     newSocket!.emit('join-video-call', sessionId);
                 });
 
-                newSocket.on('user-joined', async () => {
+                newSocket.on('user-joined', async ({ isPolite }) => {
                     try {
                         console.log('🎉 Another user joined the room!');
-                        if (newSocket) {
-                            console.log('Creating offer for the other participant...');
+                        console.log(`My role: ${isPolite ? 'POLITE (will create offer)' : 'IMPOLITE (will wait for offer)'}`);
+
+                        isPoliteRef.current = isPolite;
+
+                        // Only the polite peer creates the offer
+                        if (isPolite && newSocket) {
+                            console.log('I am polite peer - creating offer...');
                             await createOffer(newSocket);
+                        } else {
+                            console.log('I am impolite peer - waiting for offer...');
                         }
                     } catch (error) {
                         console.error('Error handling user-joined event:', error);
@@ -184,9 +193,16 @@ const VideoCall = () => {
                 newSocket.on('offer', async (offer: RTCSessionDescriptionInit) => {
                     try {
                         console.log('📨 Received offer from other participant:', offer.type);
-                        if (newSocket) {
-                            await handleOffer(offer, newSocket);
-                            console.log('✅ Successfully handled offer and sent answer');
+
+                        // Only handle offer if we don't have a peer connection yet
+                        // or if we're the impolite peer
+                        if (!peerConnectionRef.current || !isPoliteRef.current) {
+                            if (newSocket) {
+                                await handleOffer(offer, newSocket);
+                                console.log('✅ Successfully handled offer and sent answer');
+                            }
+                        } else {
+                            console.log('⚠️ Ignoring offer - already have peer connection as polite peer');
                         }
                     } catch (error) {
                         console.error('❌ Error handling offer:', error);
