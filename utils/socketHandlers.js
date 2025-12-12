@@ -171,8 +171,106 @@ export const setupSocketHandlers = (io) => {
             }
         });
 
+        // ==================== NEW VIDEO CALL EVENTS ====================
+        // Track active video rooms
+        const videoRooms = new Map();
+
+        socket.on('video:join', async ({ sessionId, userRole }) => {
+            try {
+                console.log(`\n📹 [VIDEO JOIN] User ${socket.user.userId} joining session ${sessionId}`);
+
+                const Session = mongoose.model('Session');
+                const booking = await Session.findById(sessionId).populate('counsellor');
+
+                if (!booking) {
+                    socket.emit('video:error', { message: 'Session not found' });
+                    return;
+                }
+
+                const clientUserId = booking.user.toString();
+                const counsellorUserId = booking.counsellor.user.toString();
+                const userId = socket.user.userId;
+
+                if (userId !== clientUserId && userId !== counsellorUserId) {
+                    socket.emit('video:error', { message: 'Unauthorized' });
+                    return;
+                }
+
+                const isCounsellor = userId === counsellorUserId;
+                const actualRole = isCounsellor ? 'caller' : 'callee';
+
+                socket.join(sessionId);
+
+                if (!videoRooms.has(sessionId)) {
+                    videoRooms.set(sessionId, {});
+                }
+
+                const room = videoRooms.get(sessionId);
+                if (actualRole === 'caller') {
+                    room.caller = socket.id;
+                } else {
+                    room.callee = socket.id;
+                }
+
+                console.log(`✅ [VIDEO JOIN] User joined as ${actualRole}`);
+                socket.emit('video:role-assigned', { role: actualRole });
+
+                if (room.caller && room.callee) {
+                    console.log(`🎬 [READY] Both users present`);
+                    io.to(room.caller).emit('video:ready-to-call');
+                }
+            } catch (error) {
+                console.error('❌ [VIDEO JOIN ERROR]', error);
+                socket.emit('video:error', { message: 'Failed to join video session' });
+            }
+        });
+
+        socket.on('video:offer', ({ sessionId, offer }) => {
+            console.log(`📤 [OFFER] Received for session ${sessionId}`);
+            const room = videoRooms.get(sessionId);
+            if (room && room.callee) {
+                io.to(room.callee).emit('video:offer', { offer });
+            }
+        });
+
+        socket.on('video:answer', ({ sessionId, answer }) => {
+            console.log(`📤 [ANSWER] Received for session ${sessionId}`);
+            const room = videoRooms.get(sessionId);
+            if (room && room.caller) {
+                io.to(room.caller).emit('video:answer', { answer });
+            }
+        });
+
+        socket.on('video:ice-candidate', ({ sessionId, candidate }) => {
+            socket.to(sessionId).emit('video:ice-candidate', { candidate });
+        });
+
+        socket.on('video:leave', ({ sessionId }) => {
+            const room = videoRooms.get(sessionId);
+            if (room) {
+                if (room.caller === socket.id) delete room.caller;
+                if (room.callee === socket.id) delete room.callee;
+                socket.to(sessionId).emit('video:peer-left');
+                if (!room.caller && !room.callee) {
+                    videoRooms.delete(sessionId);
+                }
+            }
+            socket.leave(sessionId);
+        });
+
         socket.on('disconnect', () => {
             console.log('User disconnected:', socket.id);
+            // Clean up video rooms
+            for (const [sessionId, room] of videoRooms.entries()) {
+                if (room.caller === socket.id || room.callee === socket.id) {
+                    socket.to(sessionId).emit('video:peer-left');
+                    if (room.caller === socket.id) delete room.caller;
+                    if (room.callee === socket.id) delete room.callee;
+                    if (!room.caller && !room.callee) {
+                        videoRooms.delete(sessionId);
+                    }
+                }
+            }
         });
     });
 };

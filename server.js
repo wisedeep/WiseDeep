@@ -16,7 +16,6 @@ import videoCallRoutes from './routes/video-call.js';
 import imagekitRoutes from './routes/imagekit.js';
 import { setSocketInstance } from './utils/socketUtils.js';
 import { setupSocketHandlers } from './utils/socketHandlers.js';
-import { setupVideoSocketHandler } from './utils/videoSocketHandler.js';
 
 const allowedOrigins = [
   "http://localhost:8083",
@@ -70,8 +69,7 @@ const io = new Server(server, {
 
 // Initialize socket utilities
 setSocketInstance(io);
-setupSocketHandlers(io); // Messaging and other socket events
-setupVideoSocketHandler(io); // Dedicated video call handler
+setupSocketHandlers(io); // All socket events including video
 
 const PORT = process.env.PORT || 5002;
 
