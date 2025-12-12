@@ -144,11 +144,28 @@ const VideoCall = () => {
 
                 console.log('✅ Session verified');
 
+                // Sanitize URL to ensure we connect to root namespace
+                // If VITE_API_URL includes a path (e.g. /api), socket.io treats it as a namespace
+                const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                console.log('🔌 Raw API URL:', rawUrl);
+
+                let socketUrl = rawUrl;
+                try {
+                    const parsedUrl = new URL(rawUrl);
+                    socketUrl = parsedUrl.origin; // Extracts protocol + host + port, removes path
+                    console.log('🔌 Sanitized Socket URL (Origin):', socketUrl);
+                } catch (e) {
+                    console.error('❌ Failed to parse API URL, using raw:', e);
+                }
+
                 // Connect to socket
-                newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
+                console.log('🔌 Creating socket connection to:', socketUrl);
+                newSocket = io(socketUrl, {
                     auth: { token: localStorage.getItem('token') },
                     transports: ['websocket'],
-                    reconnection: true
+                    reconnection: true,
+                    // Ensure we don't accidentally send a namespace in the query or path
+                    path: '/socket.io/'
                 });
 
                 newSocket.on('connect', () => {
