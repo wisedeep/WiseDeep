@@ -3,8 +3,8 @@ import mongoose from 'mongoose';
 
 // WebRTC Signaling Server State
 const activeRooms = new Map(); // roomId -> { counsellor: socket, client: socket }
-
 const sessions = new Map(); // roomId -> Set<userId>
+const videoRooms = new Map(); // NEW: Track video call rooms - sessionId -> { caller: socketId, callee: socketId }
 
 export const setupSocketHandlers = (io) => {
     // Middleware for authentication
@@ -172,9 +172,6 @@ export const setupSocketHandlers = (io) => {
         });
 
         // ==================== NEW VIDEO CALL EVENTS ====================
-        // Track active video rooms
-        const videoRooms = new Map();
-
         socket.on('video:join', async ({ sessionId, userRole }) => {
             try {
                 console.log(`\n📹 [VIDEO JOIN] User ${socket.user.userId} joining session ${sessionId}`);
