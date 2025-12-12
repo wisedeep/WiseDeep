@@ -46,6 +46,7 @@ const VideoCall = () => {
     }, [socket, sessionId]);
 
     const createPeerConnection = (socket: Socket) => {
+        console.log('🔧 Creating new peer connection...');
         const configuration: RTCConfiguration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -56,24 +57,39 @@ const VideoCall = () => {
         const pc = new RTCPeerConnection(configuration);
 
         // Add local stream tracks
+        const trackCount = localStreamRef.current?.getTracks().length || 0;
+        console.log(`Adding ${trackCount} local tracks to peer connection`);
         localStreamRef.current?.getTracks().forEach(track => {
             pc.addTrack(track, localStreamRef.current!);
         });
 
         // Handle incoming tracks
         pc.ontrack = (event) => {
-            console.log('Received remote track');
+            console.log('🎥 Received remote track:', event.track.kind);
             if (remoteVideoRef.current) {
                 remoteVideoRef.current.srcObject = event.streams[0];
                 setIsConnected(true);
+                console.log('✅ Remote video stream connected!');
             }
         };
 
         // Handle ICE candidates
         pc.onicecandidate = (event) => {
             if (event.candidate) {
+                console.log('🧊 Sending ICE candidate to peer');
                 socket.emit('ice-candidate', { sessionId, candidate: event.candidate });
+            } else {
+                console.log('✅ All ICE candidates have been sent');
             }
+        };
+
+        // Handle connection state changes
+        pc.onconnectionstatechange = () => {
+            console.log(`🔌 Connection state: ${pc.connectionState}`);
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            console.log(`🧊 ICE connection state: ${pc.iceConnectionState}`);
         };
 
         peerConnectionRef.current = pc;
@@ -81,17 +97,22 @@ const VideoCall = () => {
     };
 
     const createOffer = async (socket: Socket) => {
+        console.log('📤 Creating WebRTC offer...');
         const pc = createPeerConnection(socket);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        console.log('📤 Sending offer to peer via socket');
         socket.emit('offer', { sessionId, offer });
     };
 
     const handleOffer = async (offer: RTCSessionDescriptionInit, socket: Socket) => {
+        console.log('📥 Handling received offer and creating answer...');
         const pc = createPeerConnection(socket);
         await pc.setRemoteDescription(offer);
+        console.log('✅ Set remote description from offer');
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        console.log('📥 Sending answer to peer via socket');
         socket.emit('answer', { sessionId, answer });
     };
 
@@ -144,24 +165,72 @@ const VideoCall = () => {
                 });
 
                 newSocket.on('user-joined', async () => {
-                    console.log('Another user joined');
-                    if (newSocket) await createOffer(newSocket);
+                    try {
+                        console.log('🎉 Another user joined the room!');
+                        if (newSocket) {
+                            console.log('Creating offer for the other participant...');
+                            await createOffer(newSocket);
+                        }
+                    } catch (error) {
+                        console.error('Error handling user-joined event:', error);
+                        toast({
+                            title: 'Connection Error',
+                            description: 'Failed to initiate connection with other participant',
+                            variant: 'destructive'
+                        });
+                    }
                 });
 
                 newSocket.on('offer', async (offer: RTCSessionDescriptionInit) => {
-                    console.log('Received offer');
-                    if (newSocket) await handleOffer(offer, newSocket);
+                    try {
+                        console.log('📨 Received offer from other participant:', offer.type);
+                        if (newSocket) {
+                            await handleOffer(offer, newSocket);
+                            console.log('✅ Successfully handled offer and sent answer');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error handling offer:', error);
+                        toast({
+                            title: 'Connection Error',
+                            description: 'Failed to process connection offer',
+                            variant: 'destructive'
+                        });
+                    }
                 });
 
                 newSocket.on('answer', async (answer: RTCSessionDescriptionInit) => {
-                    console.log('Received answer');
-                    await peerConnectionRef.current?.setRemoteDescription(answer);
-                    setIsConnected(true);
+                    try {
+                        console.log('📨 Received answer from other participant:', answer.type);
+                        if (peerConnectionRef.current) {
+                            await peerConnectionRef.current.setRemoteDescription(answer);
+                            console.log('✅ Successfully set remote description from answer');
+                            setIsConnected(true);
+                        } else {
+                            console.error('❌ No peer connection available to set answer');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error handling answer:', error);
+                        toast({
+                            title: 'Connection Error',
+                            description: 'Failed to process connection answer',
+                            variant: 'destructive'
+                        });
+                    }
                 });
 
                 newSocket.on('ice-candidate', async (candidate: RTCIceCandidateInit) => {
-                    console.log('Received ICE candidate');
-                    await peerConnectionRef.current?.addIceCandidate(candidate);
+                    try {
+                        console.log('🧊 Received ICE candidate');
+                        if (peerConnectionRef.current) {
+                            await peerConnectionRef.current.addIceCandidate(candidate);
+                            console.log('✅ Successfully added ICE candidate');
+                        } else {
+                            console.error('❌ No peer connection available to add ICE candidate');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error adding ICE candidate:', error);
+                        // ICE candidate errors are common and usually not critical
+                    }
                 });
 
                 setSocket(newSocket);

@@ -83,24 +83,46 @@ export const setupSocketHandlers = (io) => {
                 }
 
                 console.log(`User ${socket.id} (${socket.user.userId}) joining video call: ${sessionId}`);
+
+                // Check if there are already users in the room BEFORE joining
+                const room = io.sockets.adapter.rooms.get(sessionId);
+                const existingParticipants = room ? room.size : 0;
+                console.log(`Room ${sessionId} currently has ${existingParticipants} participant(s)`);
+
+                // Join the room
                 socket.join(sessionId);
-                // Notify other users in the room
-                socket.to(sessionId).emit('user-joined');
+
+                // If someone is already in the room, notify them that a new user joined
+                // AND notify the current user that someone is waiting
+                if (existingParticipants > 0) {
+                    console.log(`Notifying existing participants in room ${sessionId} that user ${socket.id} joined`);
+                    socket.to(sessionId).emit('user-joined');
+
+                    // Also notify the joining user that there's already someone in the room
+                    console.log(`Notifying ${socket.id} that room ${sessionId} already has participants`);
+                    socket.emit('user-joined');
+                } else {
+                    console.log(`User ${socket.id} is the first to join room ${sessionId}`);
+                }
 
                 // NEW: Notify the other participant if they are NOT in the room yet
                 if (otherUserId) {
                     // Check if other user is already in the room
-                    const room = io.sockets.adapter.rooms.get(sessionId);
-                    const isOtherUserPresent = false;
-                    // (Simplification: We assume if they are joined, we don't need to ring them, 
-                    // but sending a notification anyway doesn't hurt).
-
-                    console.log(`Notifying other user ${otherUserId} of incoming call for session ${sessionId}`);
-                    io.to(otherUserId).emit('incoming-call', {
-                        sessionId,
-                        callerName: socket.user.firstName ? `${socket.user.firstName} ${socket.user.lastName}` : 'Counsellor/Client',
-                        message: 'Session started. Click to join!'
+                    const isOtherUserPresent = room && Array.from(room).some(socketId => {
+                        const otherSocket = io.sockets.sockets.get(socketId);
+                        return otherSocket && otherSocket.user.userId === otherUserId;
                     });
+
+                    if (!isOtherUserPresent) {
+                        console.log(`Notifying other user ${otherUserId} of incoming call for session ${sessionId}`);
+                        io.to(otherUserId).emit('incoming-call', {
+                            sessionId,
+                            callerName: socket.user.firstName ? `${socket.user.firstName} ${socket.user.lastName}` : 'Counsellor/Client',
+                            message: 'Session started. Click to join!'
+                        });
+                    } else {
+                        console.log(`Other user ${otherUserId} is already in room ${sessionId}`);
+                    }
                 }
 
             } catch (error) {
@@ -114,6 +136,8 @@ export const setupSocketHandlers = (io) => {
             if (socket.rooms.has(sessionId)) {
                 console.log(`Offer from ${socket.id} for session ${sessionId}`);
                 socket.to(sessionId).emit('offer', offer);
+            } else {
+                console.error(`User ${socket.id} not in room ${sessionId} when sending offer`);
             }
         });
 
@@ -121,6 +145,8 @@ export const setupSocketHandlers = (io) => {
             if (socket.rooms.has(sessionId)) {
                 console.log(`Answer from ${socket.id} for session ${sessionId}`);
                 socket.to(sessionId).emit('answer', answer);
+            } else {
+                console.error(`User ${socket.id} not in room ${sessionId} when sending answer`);
             }
         });
 
@@ -128,6 +154,8 @@ export const setupSocketHandlers = (io) => {
             if (socket.rooms.has(sessionId)) {
                 console.log(`ICE candidate from ${socket.id} for session ${sessionId}`);
                 socket.to(sessionId).emit('ice-candidate', candidate);
+            } else {
+                console.error(`User ${socket.id} not in room ${sessionId} when sending ICE candidate`);
             }
         });
 
