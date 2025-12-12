@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,28 +11,30 @@ const VideoCall = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
 
+    // State
     const [socket, setSocket] = useState<Socket | null>(null);
+    const [userRole, setUserRole] = useState<'caller' | 'callee' | null>(null);
+    const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
-    const [isConnected, setIsConnected] = useState(false);
     const [callDuration, setCallDuration] = useState(0);
 
+    // Refs
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
-    const makingOfferRef = useRef(false); // Track if we're currently making an offer
-    const isPoliteRef = useRef(false); // Determines who makes the offer
 
+    // Timer
     useEffect(() => {
         let interval: NodeJS.Timeout;
-        if (isConnected) {
+        if (connectionState === 'connected') {
             interval = setInterval(() => {
                 setCallDuration(prev => prev + 1);
             }, 1000);
         }
         return () => clearInterval(interval);
-    }, [isConnected]);
+    }, [connectionState]);
 
     const formatDuration = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -40,54 +42,58 @@ const VideoCall = () => {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const retryConnection = useCallback(() => {
-        if (socket) {
-            console.log('Retrying connection...');
-            socket.emit('join-video-call', sessionId);
-        }
-    }, [socket, sessionId]);
+    // ==================== PEER CONNECTION SETUP ====================
+    const createPeerConnection = (socket: Socket): RTCPeerConnection => {
+        console.log('🔧 Creating peer connection...');
 
-    const createPeerConnection = (socket: Socket) => {
-        console.log('🔧 Creating new peer connection...');
-        const configuration: RTCConfiguration = {
+        const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
             ]
-        };
-
-        const pc = new RTCPeerConnection(configuration);
-
-        // Add local stream tracks
-        const trackCount = localStreamRef.current?.getTracks().length || 0;
-        console.log(`Adding ${trackCount} local tracks to peer connection`);
-        localStreamRef.current?.getTracks().forEach(track => {
-            pc.addTrack(track, localStreamRef.current!);
         });
 
-        // Handle incoming tracks
+        // Add local tracks
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => {
+                pc.addTrack(track, localStreamRef.current!);
+                console.log(`➕ Added ${track.kind} track to peer connection`);
+            });
+        }
+
+        // Handle remote tracks
         pc.ontrack = (event) => {
-            console.log('🎥 Received remote track:', event.track.kind);
-            if (remoteVideoRef.current) {
+            console.log(`🎥 Received remote ${event.track.kind} track`);
+            if (remoteVideoRef.current && event.streams[0]) {
                 remoteVideoRef.current.srcObject = event.streams[0];
-                setIsConnected(true);
-                console.log('✅ Remote video stream connected!');
+                setConnectionState('connected');
+                console.log('✅ Remote video connected!');
             }
         };
 
         // Handle ICE candidates
         pc.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('🧊 Sending ICE candidate to peer');
-                socket.emit('ice-candidate', { sessionId, candidate: event.candidate });
-            } else {
-                console.log('✅ All ICE candidates have been sent');
+                console.log('🧊 Sending ICE candidate');
+                socket.emit('video:ice-candidate', {
+                    sessionId,
+                    candidate: event.candidate
+                });
             }
         };
 
-        // Handle connection state changes
+        // Connection state monitoring
         pc.onconnectionstatechange = () => {
             console.log(`🔌 Connection state: ${pc.connectionState}`);
+            if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                setConnectionState('disconnected');
+                toast({
+                    title: 'Connection Lost',
+                    description: 'The video connection was lost',
+                    variant: 'destructive'
+                });
+            }
         };
 
         pc.oniceconnectionstatechange = () => {
@@ -98,32 +104,15 @@ const VideoCall = () => {
         return pc;
     };
 
-    const createOffer = async (socket: Socket) => {
-        console.log('📤 Creating WebRTC offer...');
-        const pc = createPeerConnection(socket);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        console.log('📤 Sending offer to peer via socket');
-        socket.emit('offer', { sessionId, offer });
-    };
-
-    const handleOffer = async (offer: RTCSessionDescriptionInit, socket: Socket) => {
-        console.log('📥 Handling received offer and creating answer...');
-        const pc = createPeerConnection(socket);
-        await pc.setRemoteDescription(offer);
-        console.log('✅ Set remote description from offer');
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        console.log('📥 Sending answer to peer via socket');
-        socket.emit('answer', { sessionId, answer });
-    };
-
+    // ==================== MAIN INITIALIZATION ====================
     useEffect(() => {
         let newSocket: Socket | undefined;
 
-        const initializeCall = async () => {
+        const initialize = async () => {
             try {
-                // Get user media
+                console.log('\n🎬 Initializing video call...');
+
+                // Get user media first
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: true,
                     audio: true
@@ -133,142 +122,163 @@ const VideoCall = () => {
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
                 }
+                console.log('✅ Got local media stream');
 
-                // Verify session with backend
-                // @ts-ignore
-                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/video-call/initialize-session`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({ sessionId })
-                });
+                // Verify session
+                const response = await fetch(
+                    `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/video-call/initialize-session`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify({ sessionId })
+                    }
+                );
 
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || 'Failed to join session');
                 }
 
-                const data = await response.json();
-                console.log('Session initialized:', data);
+                console.log('✅ Session verified');
 
+                // Connect to socket
                 newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
                     auth: { token: localStorage.getItem('token') },
-                    transports: ['websocket'], // Force WebSocket only
-                    reconnection: true,
-                    reconnectionAttempts: 5,
-                    reconnectionDelay: 1000,
+                    transports: ['websocket'],
+                    reconnection: true
                 });
 
                 newSocket.on('connect', () => {
-                    console.log('Connected to signaling server');
-                    newSocket!.emit('join-video-call', sessionId);
+                    console.log('✅ Connected to signaling server');
+                    setConnectionState('connecting');
+
+                    // Join video room
+                    newSocket!.emit('video:join', { sessionId, userRole: 'auto' });
                 });
 
-                newSocket.on('user-joined', async ({ isPolite }) => {
+                // ==================== ROLE ASSIGNED ====================
+                newSocket.on('video:role-assigned', ({ role }) => {
+                    console.log(`👤 Role assigned: ${role.toUpperCase()}`);
+                    setUserRole(role);
+                });
+
+                // ==================== READY TO CALL (CALLER ONLY) ====================
+                newSocket.on('video:ready-to-call', async () => {
+                    console.log('🎬 Both users present, creating offer...');
+
                     try {
-                        console.log('🎉 Another user joined the room!');
-                        console.log(`My role: ${isPolite ? 'POLITE (will create offer)' : 'IMPOLITE (will wait for offer)'}`);
+                        const pc = createPeerConnection(newSocket!);
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
 
-                        isPoliteRef.current = isPolite;
-
-                        // Only the polite peer creates the offer
-                        if (isPolite && newSocket) {
-                            console.log('I am polite peer - creating offer...');
-                            await createOffer(newSocket);
-                        } else {
-                            console.log('I am impolite peer - waiting for offer...');
-                        }
+                        console.log('📤 Sending offer');
+                        newSocket!.emit('video:offer', { sessionId, offer });
                     } catch (error) {
-                        console.error('Error handling user-joined event:', error);
+                        console.error('❌ Error creating offer:', error);
                         toast({
                             title: 'Connection Error',
-                            description: 'Failed to initiate connection with other participant',
+                            description: 'Failed to create offer',
                             variant: 'destructive'
                         });
                     }
                 });
 
-                newSocket.on('offer', async (offer: RTCSessionDescriptionInit) => {
-                    try {
-                        console.log('📨 Received offer from other participant:', offer.type);
+                // ==================== OFFER (CALLEE ONLY) ====================
+                newSocket.on('video:offer', async ({ offer }) => {
+                    console.log('📨 Received offer');
 
-                        // Only handle offer if we don't have a peer connection yet
-                        // or if we're the impolite peer
-                        if (!peerConnectionRef.current || !isPoliteRef.current) {
-                            if (newSocket) {
-                                await handleOffer(offer, newSocket);
-                                console.log('✅ Successfully handled offer and sent answer');
-                            }
-                        } else {
-                            console.log('⚠️ Ignoring offer - already have peer connection as polite peer');
-                        }
+                    try {
+                        const pc = createPeerConnection(newSocket!);
+                        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                        console.log('✅ Set remote description');
+
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+
+                        console.log('📤 Sending answer');
+                        newSocket!.emit('video:answer', { sessionId, answer });
                     } catch (error) {
                         console.error('❌ Error handling offer:', error);
                         toast({
                             title: 'Connection Error',
-                            description: 'Failed to process connection offer',
+                            description: 'Failed to handle offer',
                             variant: 'destructive'
                         });
                     }
                 });
 
-                newSocket.on('answer', async (answer: RTCSessionDescriptionInit) => {
+                // ==================== ANSWER (CALLER ONLY) ====================
+                newSocket.on('video:answer', async ({ answer }) => {
+                    console.log('📨 Received answer');
+
                     try {
-                        console.log('📨 Received answer from other participant:', answer.type);
                         if (peerConnectionRef.current) {
-                            await peerConnectionRef.current.setRemoteDescription(answer);
-                            console.log('✅ Successfully set remote description from answer');
-                            setIsConnected(true);
-                        } else {
-                            console.error('❌ No peer connection available to set answer');
+                            await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+                            console.log('✅ Set remote description from answer');
                         }
                     } catch (error) {
                         console.error('❌ Error handling answer:', error);
                         toast({
                             title: 'Connection Error',
-                            description: 'Failed to process connection answer',
+                            description: 'Failed to handle answer',
                             variant: 'destructive'
                         });
                     }
                 });
 
-                newSocket.on('ice-candidate', async (candidate: RTCIceCandidateInit) => {
+                // ==================== ICE CANDIDATE ====================
+                newSocket.on('video:ice-candidate', async ({ candidate }) => {
+                    console.log('🧊 Received ICE candidate');
+
                     try {
-                        console.log('🧊 Received ICE candidate');
                         if (peerConnectionRef.current) {
-                            await peerConnectionRef.current.addIceCandidate(candidate);
-                            console.log('✅ Successfully added ICE candidate');
-                        } else {
-                            console.error('❌ No peer connection available to add ICE candidate');
+                            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+                            console.log('✅ Added ICE candidate');
                         }
                     } catch (error) {
                         console.error('❌ Error adding ICE candidate:', error);
-                        // ICE candidate errors are common and usually not critical
                     }
+                });
+
+                // ==================== PEER LEFT ====================
+                newSocket.on('video:peer-left', () => {
+                    console.log('👋 Other user left');
+                    setConnectionState('disconnected');
+                    toast({
+                        title: 'Call Ended',
+                        description: 'The other participant left the call'
+                    });
+                });
+
+                // ==================== ERROR ====================
+                newSocket.on('video:error', ({ message }) => {
+                    console.error('❌ Video error:', message);
+                    toast({
+                        title: 'Error',
+                        description: message,
+                        variant: 'destructive'
+                    });
                 });
 
                 setSocket(newSocket);
 
             } catch (error: any) {
-                console.error('Error initializing call:', error);
+                console.error('❌ Initialization error:', error);
 
-                let errorMessage = '';
+                let errorMessage = 'Failed to initialize video call';
                 if (error.name === 'NotAllowedError') {
-                    errorMessage = 'Camera and microphone access denied. Please allow permissions in your browser settings and refresh the page.';
+                    errorMessage = 'Camera/microphone access denied. Please allow permissions.';
                 } else if (error.name === 'NotFoundError') {
-                    errorMessage = 'No camera or microphone found. Please connect a camera and microphone.';
+                    errorMessage = 'No camera or microphone found.';
                 } else if (error.name === 'NotReadableError') {
-                    errorMessage = 'Camera or microphone is already in use by another application or tab. Please close other apps/tabs using your camera.';
-                } else if (error.name === 'OverconstrainedError') {
-                    errorMessage = 'Camera/microphone configuration not supported. Please try with different settings.';
-                } else {
-                    errorMessage = `Could not access camera or microphone: ${error.message}. Please check your browser permissions.`;
+                    errorMessage = 'Camera/microphone is already in use.';
                 }
 
                 toast({
-                    title: 'Connection Error',
+                    title: 'Initialization Error',
                     description: errorMessage,
                     variant: 'destructive',
                     duration: 6000
@@ -276,21 +286,21 @@ const VideoCall = () => {
             }
         };
 
-        initializeCall();
+        initialize();
 
+        // Cleanup
         return () => {
-            // Cleanup
+            console.log('🧹 Cleaning up...');
             localStreamRef.current?.getTracks().forEach(track => track.stop());
             peerConnectionRef.current?.close();
-            // Important: Use the local newSocket reference for cleanup
-            // The state 'socket' might not be updated yet in the cleanup function if run immediately
-            if (newSocket) newSocket.disconnect();
+            if (newSocket) {
+                newSocket.emit('video:leave', { sessionId });
+                newSocket.disconnect();
+            }
         };
-    }, [sessionId]);
+    }, [sessionId, toast]);
 
-
-
-
+    // ==================== CONTROLS ====================
     const toggleMute = () => {
         if (localStreamRef.current) {
             localStreamRef.current.getAudioTracks().forEach(track => {
@@ -312,10 +322,14 @@ const VideoCall = () => {
     const endCall = () => {
         localStreamRef.current?.getTracks().forEach(track => track.stop());
         peerConnectionRef.current?.close();
-        socket?.disconnect();
+        if (socket) {
+            socket.emit('video:leave', { sessionId });
+            socket.disconnect();
+        }
         navigate(-1);
     };
 
+    // ==================== RENDER ====================
     return (
         <div className="min-h-screen bg-gray-900 flex flex-col">
             {/* Header */}
@@ -329,19 +343,19 @@ const VideoCall = () => {
                         <Monitor className="w-5 h-5 inline mr-2" />
                         {formatDuration(callDuration)}
                     </div>
-                    <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                    <div className={`w-3 h-3 rounded-full ${connectionState === 'connected' ? 'bg-green-500' :
+                            connectionState === 'connecting' ? 'bg-yellow-500' :
+                                'bg-red-500'
+                        }`} />
                     <span className="text-gray-400 text-sm">
-                        {isConnected ? 'Connected' : 'Connecting...'}
+                        {connectionState === 'connected' ? 'Connected' :
+                            connectionState === 'connecting' ? 'Connecting...' :
+                                'Disconnected'}
                     </span>
-                    {!isConnected && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={retryConnection}
-                            className="ml-2 h-7 text-xs border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
-                        >
-                            Retry
-                        </Button>
+                    {userRole && (
+                        <span className="text-gray-400 text-xs bg-gray-700 px-2 py-1 rounded">
+                            {userRole === 'caller' ? 'Counsellor' : 'Client'}
+                        </span>
                     )}
                 </div>
             </div>
@@ -357,7 +371,7 @@ const VideoCall = () => {
                             playsInline
                             className="w-full h-full object-cover"
                         />
-                        {!isConnected && (
+                        {connectionState !== 'connected' && (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                                 <p className="text-white">Waiting for other participant...</p>
                             </div>
@@ -413,10 +427,10 @@ const VideoCall = () => {
             </div>
 
             <style>{`
-        .mirror {
-          transform: scaleX(-1);
-        }
-      `}</style>
+                .mirror {
+                    transform: scaleX(-1);
+                }
+            `}</style>
         </div>
     );
 };
