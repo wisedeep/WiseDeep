@@ -50,7 +50,10 @@ const VideoCall = () => {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
             ]
         });
 
@@ -406,8 +409,23 @@ const VideoCall = () => {
                             className="w-full h-full object-cover"
                         />
                         {connectionState !== 'connected' && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                                <p className="text-white">Waiting for other participant...</p>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 gap-4">
+                                {(connectionState === 'failed' || connectionState === 'disconnected') ? (
+                                    <>
+                                        <p className="text-red-400 font-medium">Connection Lost</p>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => window.location.reload()}
+                                            className="gap-2"
+                                        >
+                                            <Monitor className="w-4 h-4" />
+                                            Retry Connection
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <p className="text-white animate-pulse">Waiting for other participant...</p>
+                                )}
                             </div>
                         )}
                     </CardContent>
