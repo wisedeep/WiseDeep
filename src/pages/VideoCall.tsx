@@ -116,7 +116,11 @@ const VideoCall = () => {
 
                 // Fetch TURN credentials
                 try {
-                    const response = await fetch("https://wisedeep.metered.live/api/v1/turn/credentials?apiKey=4c8ac716c4525ba5e6303315bb051aed8d62");
+                    const apiKey = import.meta.env.VITE_METERED_API_KEY;
+                    if (!apiKey) {
+                        console.warn('⚠️ VITE_METERED_API_KEY is missing! Video calls might fail outside local network.');
+                    }
+                    const response = await fetch(`https://wisedeep.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`);
                     const iceServers = await response.json();
                     iceServersRef.current = iceServers;
                     console.log('✅ Fetched TURN credentials');
