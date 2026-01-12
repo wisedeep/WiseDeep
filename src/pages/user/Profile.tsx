@@ -71,14 +71,24 @@ const Profile = () => {
 
   const handleSave = async () => {
     try {
-      await api.put('/user/profile', formData);
-      setProfile(formData);
+      const response = await api.put('/user/profile', formData);
+      // Update profile with the response from server
+      const updatedProfile = response.data;
+      setProfile(updatedProfile);
+      setFormData({
+        firstName: updatedProfile.firstName || '',
+        lastName: updatedProfile.lastName || '',
+        email: updatedProfile.email || '',
+        username: updatedProfile.username || '',
+        bio: updatedProfile.bio || ''
+      });
       setEditing(false);
       toast({
         title: "Success",
         description: "Profile updated successfully",
       });
     } catch (error) {
+      console.error('Profile update error:', error);
       toast({
         title: "Error",
         description: "Failed to update profile",

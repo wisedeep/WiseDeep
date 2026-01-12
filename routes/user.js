@@ -786,7 +786,12 @@ router.post('/messages/send', authUser, async (req, res) => {
     await message.populate('receiver', 'firstName lastName');
 
     // Emit real-time notification to counsellor
-    emitToCounsellor(counsellorUser._id.toString(), 'receive-message', message);
+    try {
+      emitToUser(counsellorUser._id.toString(), 'receive-message', message);
+      console.log('Message emitted to counsellor:', counsellorUser._id.toString());
+    } catch (socketError) {
+      console.error('Error emitting message to counsellor:', socketError);
+    }
 
     res.json(message);
   } catch (error) {

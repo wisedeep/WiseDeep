@@ -14,6 +14,8 @@ export const setSocketInstance = (socketInstance) => {
 
   // Set up socket connections
   io.on('connection', (socket) => {
+    console.log('New socket connection:', socket.id);
+
     // Store counsellor ID when they connect
     socket.on('register-counsellor', (counsellorId) => {
       if (!counsellorSockets.has(counsellorId)) {
@@ -32,8 +34,23 @@ export const setSocketInstance = (socketInstance) => {
       console.log(`User ${userId} registered with socket ${socket.id}`);
     });
 
+    // Handle sending messages from client
+    socket.on('send-message', (data) => {
+      console.log('Message received via socket:', data);
+      // Emit to the receiver
+      if (data.receiverId) {
+        const receiverSockets = userSockets.get(data.receiverId);
+        if (receiverSockets && receiverSockets.size > 0) {
+          receiverSockets.forEach(socketId => {
+            io.to(socketId).emit('receive-message', data.message);
+          });
+        }
+      }
+    });
+
     // Clean up when socket disconnects
     socket.on('disconnect', () => {
+      console.log('Socket disconnected:', socket.id);
       // Remove from counsellor sockets
       for (const [counsellorId, sockets] of counsellorSockets.entries()) {
         sockets.delete(socket.id);

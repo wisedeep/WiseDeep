@@ -103,6 +103,62 @@ const Notes = () => {
     }
   };
 
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+
+  const startEditing = (note: Note) => {
+    setEditingNoteId(note._id);
+    setEditTitle(note.title);
+    setEditContent(note.content);
+    setEditCategory(note.category || "");
+  };
+
+  const cancelEditing = () => {
+    setEditingNoteId(null);
+    setEditTitle("");
+    setEditContent("");
+    setEditCategory("");
+  };
+
+  const updateNote = async (noteId: string) => {
+    if (!editTitle.trim() || !editContent.trim()) {
+      toast({
+        title: "Error",
+        description: "Title and content are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await api.put(`/user/notes/${noteId}`, {
+        title: editTitle,
+        content: editContent,
+        category: editCategory || undefined,
+      });
+
+      // Update the note in the list with the response from server
+      setNotes(notes.map(note =>
+        note._id === noteId ? response.data : note
+      ));
+
+      cancelEditing();
+      toast({
+        title: "Success",
+        description: "Note updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating note:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update note",
+        variant: "destructive",
+      });
+    }
+  };
+
   const navItems = [
     { icon: <TrendingUp className="w-5 h-5" />, label: "Dashboard", path: "/dashboard" },
     { icon: <BookOpen className="w-5 h-5" />, label: "Courses", path: "/courses" },
@@ -189,34 +245,78 @@ const Notes = () => {
               .map((note) => (
                 <Card key={note._id} className="hover-lift">
                   <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-1">{note.title}</h3>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
-                          <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                          {note.category && (
-                            <>
-                              <span>•</span>
-                              <span className="text-primary">{note.category}</span>
-                            </>
-                          )}
+                    {editingNoteId === note._id ? (
+                      // Edit mode
+                      <div className="space-y-4">
+                        <Input
+                          placeholder="Note Title"
+                          className="text-lg font-semibold"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                        />
+                        <Textarea
+                          placeholder="Note content..."
+                          className="min-h-[150px] resize-none"
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                        />
+                        <div className="flex items-center justify-between">
+                          <Input
+                            placeholder="Category (optional)"
+                            className="w-48"
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                          />
+                          <div className="flex gap-2">
+                            <Button variant="outline" onClick={cancelEditing}>
+                              Cancel
+                            </Button>
+                            <Button
+                              className="bg-gradient-saffron"
+                              onClick={() => updateNote(note._id)}
+                            >
+                              Save Changes
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => deleteNote(note._id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed">{note.content}</p>
+                    ) : (
+                      // View mode
+                      <>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg mb-1">{note.title}</h3>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
+                              <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                              {note.category && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-primary">{note.category}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startEditing(note)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => deleteNote(note._id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-muted-foreground leading-relaxed">{note.content}</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               ))

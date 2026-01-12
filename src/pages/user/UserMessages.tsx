@@ -328,6 +328,7 @@ const UserMessages = () => {
                                             );
                                         })
                                     )}
+                                    <div ref={messagesEndRef} />
                                 </CardContent>
                                 <div className="p-4 border-t">
                                     <div className="flex gap-2">

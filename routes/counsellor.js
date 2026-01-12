@@ -265,10 +265,16 @@ router.post('/messages/send', authCounsellor, async (req, res) => {
     await message.populate('receiver', 'firstName lastName');
 
     // Emit real-time message to receiver (client)
-    emitToUser(receiverId, 'receive-message', message);
+    try {
+      emitToUser(receiverId, 'receive-message', message);
+      console.log('Message emitted to user:', receiverId);
+    } catch (socketError) {
+      console.error('Error emitting message to user:', socketError);
+    }
 
     res.json(message);
   } catch (error) {
+    console.error('Error sending message:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
