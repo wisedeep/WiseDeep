@@ -51,18 +51,21 @@ router.get('/profile', authUser, async (req, res) => {
 // Update user profile
 router.put('/profile', authUser, async (req, res) => {
   try {
-    const { firstName, lastName, email, username, bio } = req.body;
+    const { firstName, lastName, email, bio } = req.body;
     const updateData = {};
 
     if (firstName !== undefined) updateData.firstName = firstName;
     if (lastName !== undefined) updateData.lastName = lastName;
     if (email !== undefined) updateData.email = email;
-    if (username !== undefined) updateData.username = username;
-    if (bio !== undefined) updateData.bio = bio;
+
+    // Bio is stored inside the profile object
+    if (bio !== undefined) {
+      updateData['profile.bio'] = bio;
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user.userId,
-      updateData,
+      { $set: updateData },
       { new: true, runValidators: true }
     );
 
