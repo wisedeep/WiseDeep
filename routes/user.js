@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import User from '../models/User.js';
 import Course from '../models/Course.js';
 import Session from '../models/Session.js';
@@ -17,7 +18,7 @@ import {
   isTimeInRange
 } from '../utils/timeUtils.js';
 import { sessionBookingSchema, validateData } from '../utils/validationSchemas.js';
-import { emitToCounsellor } from '../utils/socketUtils.js';
+import { emitToCounsellor, emitToUser } from '../utils/socketUtils.js';
 
 const router = express.Router();
 
@@ -587,107 +588,65 @@ router.get('/counsellors/:counsellorId/availability', authUser, async (req, res)
 
 // AI Chat endpoint
 router.post('/ai-chat', authUser, async (req, res) => {
-  console.log("🔥 /ai-chat route hit");
-  console.log("Headers:", req.headers);
-  console.log("Body received:", req.body);
+  console.log("🔥 AI Chat endpoint hit");
 
   try {
     const { message } = req.body;
-    console.log("📩 Message to send:", message);
 
     if (!message || message.trim() === '') {
-      console.log("❌ Missing message");
       return res.status(400).json({ message: 'Message is required' });
     }
 
-    console.log("🧠 Calling Gemini REST API...");
-
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
-      console.error('GOOGLE_API_KEY not found in environment variables');
-      return res.status(500).json({ message: 'AI service unavailable' });
+      console.error('❌ GOOGLE_API_KEY missing from environment variables');
+      return res.status(500).json({ message: 'AI service configuration error: API Key missing' });
     }
 
-    const systemPrompt = `You are an AI spiritual counsellor trained in the wisdom of the Bhagavad Gita, Vedas, Quran, Bible, and modern psychology. You provide guidance, support, and counseling to users seeking spiritual and emotional well-being.
+    console.log("🤖 Initializing Gemini AI...");
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-Key principles:
-- Be compassionate, non-judgmental, and supportive
-- Draw from ancient scriptures and modern psychological insights
-- Encourage self-reflection and personal growth
-- Respect all religious and spiritual traditions
-- Maintain confidentiality and professionalism
-- Guide users toward positive change and inner peace
+    const systemPrompt = `You are an AI spiritual counsellor trained in the wisdom of the Bhagavad Gita, Vedas, Quran, Bible, and modern psychology. 
+    Provide guidance, support, and counseling to users seeking spiritual and emotional well-being.
+    Be compassionate, non-judgmental, draw from scriptures and psychology, and respect all traditions.`;
 
-When responding:
-- Use warm, empathetic language
-- Provide practical advice alongside spiritual wisdom
-- Ask thoughtful questions to deepen understanding
-- End responses with encouragement or gentle guidance
-- Keep responses helpful but not overwhelming`;
-
-    const prompt = `${systemPrompt}\n\nUser message: ${message}`;
-
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt
-              }
-            ]
-          }
-        ]
-      }),
+    console.log("📤 Sending request to Gemini...");
+    const chat = model.startChat({
+      history: [
+        {
+          role: "user",
+          parts: [{ text: systemPrompt }],
+        },
+        {
+          role: "model",
+          parts: [{ text: "Understood. I am ready to provide compassionate spiritual guidance based on these principles." }],
+        },
+      ],
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("❌ Gemini API Error:", response.status, errorData);
+    const result = await chat.sendMessage(message);
+    const responseText = result.response.text();
 
-      // Handle Gemini API errors
-      if (response.status === 429) {
-        console.error("Rate limit exceeded");
-        return res.status(429).json({
-          message: "AI service temporarily unavailable due to usage limits. Please try again later or contact support."
-        });
-      }
+    console.log("✅ Gemini response received");
+    res.json({ message: responseText });
 
-      if (response.status === 404) {
-        console.error("Model not found or invalid API key");
-        return res.status(500).json({
-          message: "AI service configuration error. Please contact support."
-        });
-      }
-
-      return res.status(response.status).json({ message: `AI service error: ${response.status}` });
-    }
-
-    const data = await response.json();
-    console.log("✅ Gemini API response received");
-
-    // Extract the AI response from the Gemini API response structure
-    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!aiResponse) {
-      console.error("❌ Invalid response structure from Gemini API:", data);
-      return res.status(500).json({ message: "Invalid response from AI service" });
-    }
-
-    res.json({ message: aiResponse });
   } catch (error) {
-    console.error("❌ AI Chat Error:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack
-    });
+    console.error("❌ AI Chat Route Error:", error);
 
-    res.status(500).json({ message: error.message || "Server error" });
+    // Check for specific error types
+    if (error.message?.includes('API_KEY_INVALID')) {
+      return res.status(500).json({ message: "Invalid API Key. Please check your configuration." });
+    }
+
+    if (error.message?.includes('SAFETY')) {
+      return res.status(400).json({ message: "I'm sorry, I cannot respond to that message due to safety guidelines." });
+    }
+
+    res.status(500).json({
+      message: "AI service error. Please try again later.",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
