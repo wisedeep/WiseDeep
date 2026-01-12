@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Hero = () => {
   return (
@@ -7,7 +8,7 @@ const Hero = () => {
       {/* Gradient Background */}
       <div className="absolute inset-0 bg-gradient-warm -z-10" />
       <div className="absolute inset-0 bg-gradient-glow -z-10" />
-      
+
       {/* Animated Circles */}
       <div className="absolute top-20 right-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulse" />
       <div className="absolute bottom-20 left-10 w-96 h-96 bg-accent/10 rounded-full blur-3xl animate-pulse delay-1000" />
@@ -35,20 +36,24 @@ const Hero = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <Button 
-              size="lg" 
-              className="bg-gradient-saffron hover:shadow-glow transition-smooth text-lg px-8 py-6 group"
-            >
-              Start Your Journey
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-smooth" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="border-primary text-primary hover:bg-primary/10 text-lg px-8 py-6 transition-smooth"
-            >
-              Talk to AI Counsellor
-            </Button>
+            <Link to="/signup">
+              <Button
+                size="lg"
+                className="bg-gradient-saffron hover:shadow-glow transition-smooth text-lg px-8 py-6 group"
+              >
+                Start Your Journey
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-smooth" />
+              </Button>
+            </Link>
+            <Link to="/ai-chat">
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-primary text-primary hover:bg-primary/10 text-lg px-8 py-6 transition-smooth"
+              >
+                Talk to AI Counsellor
+              </Button>
+            </Link>
           </div>
 
           {/* Stats */}
