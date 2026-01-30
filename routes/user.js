@@ -608,7 +608,7 @@ router.post('/ai-chat', authUser, async (req, res) => {
 
     console.log("🤖 Initializing Gemini AI...");
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
     const systemPrompt = `You are an AI spiritual counsellor trained in the wisdom of the Bhagavad Gita, Vedas, Quran, Bible, and modern psychology. 
     Provide guidance, support, and counseling to users seeking spiritual and emotional well-being.
